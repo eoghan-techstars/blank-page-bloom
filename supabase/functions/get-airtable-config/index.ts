@@ -28,26 +28,42 @@ serve(async (req) => {
       }
     };
 
+    // Log the request type and config keys being requested
+    console.log(`Received request for config type: ${type}`);
+    console.log(`Available config keys: ${Object.keys(configs).join(', ')}`);
+    
     const config = configs[type as keyof typeof configs];
     if (!config) {
-      throw new Error("Invalid configuration type requested");
+      throw new Error(`Invalid configuration type requested: ${type}`);
     }
 
     // Log the config being returned (without showing full token)
     const safeConfig = { ...config };
     if (safeConfig.token) {
-      safeConfig.token = safeConfig.token.substring(0, 10) + '...';
+      safeConfig.token = safeConfig.token?.substring(0, 5) + '...' || 'undefined';
     }
     console.log(`Returning ${type} config:`, safeConfig);
 
     return new Response(JSON.stringify(config), {
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
+      },
       status: 200,
     });
   } catch (error) {
     console.error("Error in get-airtable-config:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { "Content-Type": "application/json" },
+    return new Response(JSON.stringify({ 
+      error: error.message,
+      type: "error",
+      timestamp: new Date().toISOString()
+    }), {
+      headers: { 
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
+      },
       status: 500,
     });
   }
