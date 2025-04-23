@@ -1,11 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Founder } from '../types/founder';
+import { AirtableConfig } from '../hooks/useAirtableConfig';
 
-let founderConfig: {
-  token: string;
-  baseId: string;
-  tableId: string;
-} | null = null;
+let founderConfig: AirtableConfig | null = null;
 
 // Get configuration from Supabase Edge Function
 export const getFounderAirtableConfig = async () => {
@@ -276,7 +273,7 @@ function createSlug(name: string): string {
     .replace(/\s+/g, '-');
 }
 
-export const updateFounderOnboardingField = async (founderName: string, field: string, value: string): Promise<void> => {
+export async function updateFounderOnboardingField(founderName: string, field: string, value: string): Promise<void> {
   const config = await getFounderAirtableConfig();
   
   if (!config.token || !config.baseId) {

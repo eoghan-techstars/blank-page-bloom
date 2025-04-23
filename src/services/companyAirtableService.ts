@@ -1,11 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Company } from '../types/company';
+import { AirtableConfig } from '../hooks/useAirtableConfig';
 
-let companyConfig: {
-  token: string;
-  baseId: string;
-  tableId: string;
-} | null = null;
+let companyConfig: AirtableConfig | null = null;
 
 // Get configuration from Supabase Edge Function
 const getAirtableConfig = async () => {

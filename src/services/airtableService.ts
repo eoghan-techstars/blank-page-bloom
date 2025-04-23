@@ -1,11 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { Mentor } from '../types/mentor';
+import { AirtableConfig } from '../hooks/useAirtableConfig';
 
-let airtableConfig: {
-  token: string;
-  baseId: string;
-  tableName: string;
-} | null = null;
+let airtableConfig: AirtableConfig | null = null;
 
 // Get configuration from Supabase Edge Function
 export const getAirtableConfig = async () => {

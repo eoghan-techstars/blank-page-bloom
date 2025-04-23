@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
-import { fetchAdditionalMentors, isAirtableConfigured, listTables } from '../../../services/airtableService';
+import { fetchAdditionalMentors, listTables } from '../../../services/airtableService';
 import { Mentor } from '../../../types/mentor';
 import { toast } from 'sonner';
+import { useAirtableConfig } from '../../../hooks/useAirtableConfig';
 
 export const useAdditionalMentorsData = () => {
   const [mentors, setMentors] = useState<Mentor[]>([]);
@@ -9,36 +10,51 @@ export const useAdditionalMentorsData = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  
+  const { config, loading: configLoading, error: configError } = useAirtableConfig('mentors');
 
   const loadMentors = async () => {
     try {
       setLoading(true);
       setError(null);
       
-      if (isAirtableConfigured()) {
+      if (configLoading) {
+        console.log('Waiting for Airtable config to load...');
+        return;
+      }
+      
+      if (configError) {
+        setError(`Configuration error: ${configError}`);
+        toast.error('Failed to load Airtable configuration');
+        return;
+      }
+      
+      if (config && config.token && config.baseId) {
         console.log('Checking Airtable configuration...');
         await listTables(); // List tables first to verify API access
         console.log('Fetching additional mentors...');
         const data = await fetchAdditionalMentors();
         setMentors(data);
       } else {
-        const error = 'Airtable API credentials not configured in environment variables';
+        const error = 'Airtable API credentials not configured or missing';
         console.error(error);
         setError(error);
         toast.error(error);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error loading additional mentors:', err);
-      setError('Failed to load additional mentors. Please check your environment variables and try again.');
-      toast.error('Failed to load additional mentors. Please check your environment variables.');
+      setError('Failed to load additional mentors: ' + (err.message || 'Unknown error'));
+      toast.error('Failed to load additional mentors. Please check your configuration.');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadMentors();
-  }, []);
+    if (!configLoading && config) {
+      loadMentors();
+    }
+  }, [config, configLoading]);
 
   // Get unique dates from all mentors
   const availableDates = useMemo(() => {
@@ -81,7 +97,7 @@ export const useAdditionalMentorsData = () => {
 
   return {
     mentors,
-    loading,
+    loading: loading || configLoading,
     error,
     selectedTags,
     selectedDate,
@@ -92,4 +108,4 @@ export const useAdditionalMentorsData = () => {
     handleClearFilters,
     loadMentors
   };
-}; 
+};
