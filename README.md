@@ -2,7 +2,19 @@
 
 ## Project info
 
-**URL**: https://lovable.dev/projects/7d66832d-127f-4c45-b64b-1c00befe459a
+**URL**: https://lovable.dev/projects/e23e4c0d-18b1-4137-8538-343695189b85
+
+## pm
+
+- [x] sevil not investor bug
+- [x] floating topnav
+- [x] founders airtable integration
+- [x] remove founders link from the top navbar
+- [x] add bottom navbar with mentors / founders toggle
+- [x] add founder bios
+- [ ] add "asks"
+- [ ] make 2-way editable
+- [ ] add 100+ more mentors
 
 ## How can I edit this code?
 
@@ -10,7 +22,7 @@ There are several ways of editing your application.
 
 **Use Lovable**
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/7d66832d-127f-4c45-b64b-1c00befe459a) and start prompting.
+Simply visit the [Lovable Project](https://lovable.dev/projects/e23e4c0d-18b1-4137-8538-343695189b85) and start prompting.
 
 Changes made via Lovable will be committed automatically to this repo.
 
@@ -52,7 +64,7 @@ npm run dev
 
 ## What technologies are used for this project?
 
-This project is built with:
+This project is built with .
 
 - Vite
 - TypeScript
@@ -62,12 +74,8 @@ This project is built with:
 
 ## How can I deploy this project?
 
-Simply open [Lovable](https://lovable.dev/projects/7d66832d-127f-4c45-b64b-1c00befe459a) and click on Share -> Publish.
+Simply open [Lovable](https://lovable.dev/projects/e23e4c0d-18b1-4137-8538-343695189b85) and click on Share -> Publish.
 
-## Can I connect a custom domain to my Lovable project?
+## I want to use a custom domain - is that possible?
 
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)

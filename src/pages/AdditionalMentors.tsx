@@ -4,9 +4,9 @@ import FloatingFilterBar from '../components/FloatingFilterBar';
 import PageHeader from './index/PageHeader';
 import MentorGrid from './index/MentorGrid';
 import BottomNav from '../components/BottomNav';
-import { useMentorsData } from './index/hooks/useMentorsData';
+import { useAdditionalMentorsData } from './index/hooks/useAdditionalMentorsData';
 
-const Index = () => {
+const AdditionalMentors = () => {
   const {
     mentors,
     loading,
@@ -19,7 +19,7 @@ const Index = () => {
     handleTagToggle,
     handleClearFilters,
     loadMentors
-  } = useMentorsData();
+  } = useAdditionalMentorsData();
 
   return (
     <AnimatedPageTransition>
@@ -28,7 +28,7 @@ const Index = () => {
         
         <main className="max-w-7xl mx-auto px-6 md:px-12 pb-48 pt-24">
           <PageHeader onRefresh={loadMentors} loading={loading} />
-          <h2 className="text-3xl font-bold text-techstars-slate mb-8 text-center">Mentor Magic</h2>
+          <h2 className="text-3xl font-bold text-techstars-slate mb-8 text-center">Additional Mentors</h2>
           <MentorGrid 
             mentors={mentors}
             loading={loading}
@@ -45,9 +45,9 @@ const Index = () => {
           allTags={allTags}
           selectedTags={selectedTags}
           onTagToggle={handleTagToggle}
-          availableDates={availableDates}
-          selectedDate={selectedDate}
-          onDateSelect={setSelectedDate}
+          availableDates={[]}
+          selectedDate={null}
+          onDateSelect={() => {}}
           onClearFilters={handleClearFilters}
         />
       </div>
@@ -55,4 +55,4 @@ const Index = () => {
   );
 };
 
-export default Index;
+export default AdditionalMentors; 
