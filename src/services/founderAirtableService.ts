@@ -1,17 +1,31 @@
+import { supabase } from "@/integrations/supabase/client";
 import { Founder } from '../types/founder';
 
-// Get configuration from environment variables
-export const getFounderAirtableConfig = () => {
-  return {
-    token: import.meta.env.VITE_FOUNDER_ONBOARDING_AIRTABLE_API_TOKEN || '',
-    baseId: import.meta.env.VITE_FOUNDER_ONBOARDING_AIRTABLE_BASE_ID || '',
-    tableId: import.meta.env.VITE_FOUNDER_ONBOARDING_AIRTABLE_TABLE_ID || 'tbldVJRW3MbvxyHAv'  // Fallback to the known ID
-  };
+let founderConfig: {
+  token: string;
+  baseId: string;
+  tableId: string;
+} | null = null;
+
+// Get configuration from Supabase Edge Function
+export const getFounderAirtableConfig = async () => {
+  if (!founderConfig) {
+    const { data, error } = await supabase.functions.invoke('get-airtable-config', {
+      body: { type: 'founders' }
+    });
+
+    if (error || !data) {
+      console.error('Error fetching Founder Airtable config:', error);
+      throw new Error('Failed to fetch Founder Airtable configuration');
+    }
+
+    founderConfig = data;
+  }
+  return founderConfig;
 };
 
 export const isFounderAirtableConfigured = () => {
-  const { token, baseId } = getFounderAirtableConfig();
-  return !!token && !!baseId;
+  return !!founderConfig?.token && !!founderConfig?.baseId;
 };
 
 class AirtableError extends Error {
@@ -22,27 +36,21 @@ class AirtableError extends Error {
 }
 
 export async function fetchFounders(): Promise<Founder[]> {
-  const { token, baseId, tableId } = getFounderAirtableConfig();
+  const config = await getFounderAirtableConfig();
   
-  console.log('Founder Airtable Config:', {
-    hasToken: !!token,
-    baseId,
-    tableId
-  });
-  
-  if (!token || !baseId) {
-    throw new AirtableError('Founder Airtable API credentials not configured in environment variables');
+  if (!config.token || !config.baseId) {
+    throw new AirtableError('Founder Airtable API credentials not configured');
   }
 
   try {
     const filterByFormula = encodeURIComponent("lookbookInclude='TRUE'");
-    const url = `https://api.airtable.com/v0/${baseId}/${tableId}?filterByFormula=${filterByFormula}&_=${Date.now()}`;
+    const url = `https://api.airtable.com/v0/${config.baseId}/${config.tableId}?filterByFormula=${filterByFormula}&_=${Date.now()}`;
     
     console.log('Fetching founders from URL:', url);
     
     const response = await fetch(url, {
       headers: {
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${config.token}`
       },
     });
 
@@ -103,7 +111,6 @@ export async function fetchFounders(): Promise<Founder[]> {
         lookbookTag: Array.isArray(record.fields.lookbookTag) ? 
           record.fields.lookbookTag.filter((tag: string) => tag === 'Investor' || tag === 'Operator') : 
           undefined,
-        // Founder-specific fields
         companyStage: record.fields['Company Stage'] || '',
         companyDescription: record.fields['Company Description'] || '',
         fundingRound: record.fields['Funding Round'] || '',
@@ -123,20 +130,20 @@ export async function fetchFounders(): Promise<Founder[]> {
 }
 
 async function fetchFounderLookbookBio(founderName: string): Promise<string> {
-  const { token, baseId, tableId } = getFounderAirtableConfig();
+  const config = await getFounderAirtableConfig();
   
-  if (!token || !baseId) {
+  if (!config.token || !config.baseId) {
     console.warn('Founder onboarding Airtable config not found');
     return '';
   }
 
   try {
     const filterByFormula = encodeURIComponent(`Name='${founderName}'`);
-    const url = `https://api.airtable.com/v0/${baseId}/${tableId}?filterByFormula=${filterByFormula}`;
+    const url = `https://api.airtable.com/v0/${config.baseId}/${config.tableId}?filterByFormula=${filterByFormula}`;
     
     const response = await fetch(url, {
       headers: {
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${config.token}`
       },
     });
 
@@ -158,31 +165,30 @@ async function fetchFounderLookbookBio(founderName: string): Promise<string> {
 }
 
 export async function fetchFounderBySlug(slug: string): Promise<Founder | null> {
-  const { token, baseId, tableId } = getFounderAirtableConfig();
+  const config = await getFounderAirtableConfig();
   
   console.log('Fetching founder by slug:', {
     slug,
-    hasToken: !!token,
-    baseId,
-    tableId
+    hasToken: !!config.token,
+    baseId: config.baseId,
+    tableId: config.tableId
   });
   
-  if (!token || !baseId) {
-    throw new AirtableError('Founder Airtable API credentials not configured in environment variables');
+  if (!config.token || !config.baseId) {
+    throw new AirtableError('Founder Airtable API credentials not configured');
   }
 
   try {
-    // Remove lookbookInclude filter since it's not needed for founders
     const filterByFormula = encodeURIComponent(
       `Name='${slug.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}'`
     );
-    const url = `https://api.airtable.com/v0/${baseId}/${tableId}?filterByFormula=${filterByFormula}&_=${Date.now()}`;
+    const url = `https://api.airtable.com/v0/${config.baseId}/${config.tableId}?filterByFormula=${filterByFormula}&_=${Date.now()}`;
     
     console.log('Fetching founder from URL:', url);
     
     const response = await fetch(url, {
       headers: {
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${config.token}`
       },
     });
 
@@ -248,7 +254,6 @@ export async function fetchFounderBySlug(slug: string): Promise<Founder | null> 
       lookbookTag: Array.isArray(record.fields.lookbookTag) ? 
         record.fields.lookbookTag.filter((tag: string) => tag === 'Investor' || tag === 'Operator') : 
         undefined,
-      // Founder-specific fields
       companyStage: record.fields['Company Stage'] || '',
       companyDescription: record.fields['Company Description'] || '',
       fundingRound: record.fields['Funding Round'] || '',
@@ -272,20 +277,19 @@ function createSlug(name: string): string {
 }
 
 export const updateFounderOnboardingField = async (founderName: string, field: string, value: string): Promise<void> => {
-  const { token, baseId, tableId } = getFounderAirtableConfig();
+  const config = await getFounderAirtableConfig();
   
-  if (!token || !baseId) {
-    throw new AirtableError('Founder onboarding Airtable config not configured in environment variables');
+  if (!config.token || !config.baseId) {
+    throw new AirtableError('Founder onboarding Airtable config not configured');
   }
 
   try {
-    // First, get the record ID for the founder
     const filterByFormula = encodeURIComponent(`Name='${founderName}'`);
-    const url = `https://api.airtable.com/v0/${baseId}/${tableId}?filterByFormula=${filterByFormula}`;
+    const url = `https://api.airtable.com/v0/${config.baseId}/${config.tableId}?filterByFormula=${filterByFormula}`;
     
     const response = await fetch(url, {
       headers: {
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${config.token}`
       },
     });
 
@@ -303,12 +307,11 @@ export const updateFounderOnboardingField = async (founderName: string, field: s
 
     const recordId = data.records[0].id;
 
-    // Now update the field
-    const updateUrl = `https://api.airtable.com/v0/${baseId}/${tableId}/${recordId}`;
+    const updateUrl = `https://api.airtable.com/v0/${config.baseId}/${config.tableId}/${recordId}`;
     const updateResponse = await fetch(updateUrl, {
       method: 'PATCH',
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${config.token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -339,4 +342,4 @@ export const updateFounderOnboardingField = async (founderName: string, field: s
     }
     throw new AirtableError('Failed to update founder field: Network error or invalid response');
   }
-}; 
+};

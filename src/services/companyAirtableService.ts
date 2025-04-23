@@ -1,12 +1,27 @@
+import { supabase } from "@/integrations/supabase/client";
 import { Company } from '../types/company';
 
-// Get configuration from environment variables
-const getAirtableConfig = () => {
-  return {
-    token: import.meta.env.VITE_COMPANY_AIRTABLE_API_TOKEN || '',
-    baseId: import.meta.env.VITE_COMPANY_AIRTABLE_BASE_ID || '',
-    tableId: import.meta.env.VITE_COMPANY_AIRTABLE_TABLE_ID || ''
-  };
+let companyConfig: {
+  token: string;
+  baseId: string;
+  tableId: string;
+} | null = null;
+
+// Get configuration from Supabase Edge Function
+const getAirtableConfig = async () => {
+  if (!companyConfig) {
+    const { data, error } = await supabase.functions.invoke('get-airtable-config', {
+      body: { type: 'companies' }
+    });
+
+    if (error || !data) {
+      console.error('Error fetching Company Airtable config:', error);
+      throw new Error('Failed to fetch Company Airtable configuration');
+    }
+
+    companyConfig = data;
+  }
+  return companyConfig;
 };
 
 class AirtableError extends Error {
@@ -23,18 +38,18 @@ function createSlug(name: string): string {
 export { createSlug };
 
 export const fetchCompanies = async (): Promise<Company[]> => {
-  const { token, baseId, tableId } = getAirtableConfig();
+  const config = await getAirtableConfig();
   
-  if (!token || !baseId || !tableId) {
-    throw new AirtableError('Airtable API credentials not configured in environment variables');
+  if (!config.token || !config.baseId || !config.tableId) {
+    throw new AirtableError('Airtable API credentials not configured');
   }
 
   try {
-    const url = `https://api.airtable.com/v0/${baseId}/${tableId}?sort[0][field]=company&sort[0][direction]=asc`;
+    const url = `https://api.airtable.com/v0/${config.baseId}/${config.tableId}?sort[0][field]=company&sort[0][direction]=asc`;
     
     const response = await fetch(url, {
       headers: {
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${config.token}`
       },
     });
 
@@ -78,14 +93,13 @@ export const fetchCompanies = async (): Promise<Company[]> => {
 };
 
 export const fetchCompanyBySlug = async (slug: string): Promise<Company | null> => {
-  const { token, baseId, tableId } = getAirtableConfig();
+  const config = await getAirtableConfig();
   
-  if (!token || !baseId || !tableId) {
-    throw new AirtableError('Airtable API credentials not configured in environment variables');
+  if (!config.token || !config.baseId || !config.tableId) {
+    throw new AirtableError('Airtable API credentials not configured');
   }
 
   try {
-    // Get all companies and find the one with matching slug
     const companies = await fetchCompanies();
     const company = companies.find(c => createSlug(c.lookbookCompanyName) === slug);
     
@@ -103,19 +117,19 @@ export const fetchCompanyBySlug = async (slug: string): Promise<Company | null> 
 };
 
 export const updateCompanyField = async (companyId: string, field: string, value: string): Promise<void> => {
-  const { token, baseId, tableId } = getAirtableConfig();
+  const config = await getAirtableConfig();
   
-  if (!token || !baseId || !tableId) {
-    throw new AirtableError('Airtable API credentials not configured in environment variables');
+  if (!config.token || !config.baseId || !config.tableId) {
+    throw new AirtableError('Airtable API credentials not configured');
   }
 
   try {
-    const url = `https://api.airtable.com/v0/${baseId}/${tableId}/${companyId}`;
+    const url = `https://api.airtable.com/v0/${config.baseId}/${config.tableId}/${companyId}`;
     
     const response = await fetch(url, {
       method: 'PATCH',
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${config.token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -146,4 +160,4 @@ export const updateCompanyField = async (companyId: string, field: string, value
     }
     throw new AirtableError('Failed to update company field: Network error or invalid response');
   }
-}; 
+};

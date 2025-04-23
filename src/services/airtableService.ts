@@ -1,17 +1,31 @@
+import { supabase } from "@/integrations/supabase/client";
 import { Mentor } from '../types/mentor';
 
-// Get configuration from environment variables
-export const getAirtableConfig = () => {
-  return {
-    token: import.meta.env.VITE_AIRTABLE_API_TOKEN || '',
-    baseId: import.meta.env.VITE_AIRTABLE_BASE_ID || '',
-    tableName: import.meta.env.VITE_AIRTABLE_TABLE_NAME || 'Mentors'
-  };
+let airtableConfig: {
+  token: string;
+  baseId: string;
+  tableName: string;
+} | null = null;
+
+// Get configuration from Supabase Edge Function
+export const getAirtableConfig = async () => {
+  if (!airtableConfig) {
+    const { data, error } = await supabase.functions.invoke('get-airtable-config', {
+      body: { type: 'mentors' }
+    });
+
+    if (error || !data) {
+      console.error('Error fetching Airtable config:', error);
+      throw new Error('Failed to fetch Airtable configuration');
+    }
+
+    airtableConfig = data;
+  }
+  return airtableConfig;
 };
 
 export const isAirtableConfigured = () => {
-  const { token, baseId } = getAirtableConfig();
-  return !!token && !!baseId;
+  return !!airtableConfig?.token && !!airtableConfig?.baseId;
 };
 
 class AirtableError extends Error {
@@ -22,23 +36,23 @@ class AirtableError extends Error {
 }
 
 export async function fetchMentors(): Promise<Mentor[]> {
-  const { token, baseId, tableName } = getAirtableConfig();
+  const config = await getAirtableConfig();
   
-  if (!token || !baseId) {
-    throw new AirtableError('Airtable API credentials not configured in environment variables');
+  if (!config.token || !config.baseId) {
+    throw new AirtableError('Airtable API credentials not configured');
   }
 
   try {
     // Clean up the tableName in case it contains any slashes or extra path segments
-    const cleanTableName = tableName.split('/')[0].split('?')[0].trim();
+    const cleanTableName = config.tableName.split('/')[0].split('?')[0].trim();
     
     // Add filter for lookbookLabel field
     const filterByFormula = encodeURIComponent("lookbookLabel='MM'");
-    const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(cleanTableName)}?filterByFormula=${filterByFormula}&_=${Date.now()}`;
+    const url = `https://api.airtable.com/v0/${config.baseId}/${encodeURIComponent(cleanTableName)}?filterByFormula=${filterByFormula}&_=${Date.now()}`;
     
     const response = await fetch(url, {
       headers: {
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${config.token}`
       },
     });
 
@@ -116,15 +130,15 @@ export async function fetchMentors(): Promise<Mentor[]> {
 }
 
 export async function fetchMentorBySlug(slug: string): Promise<Mentor | null> {
-  const { token, baseId, tableName } = getAirtableConfig();
+  const config = await getAirtableConfig();
   
-  if (!token || !baseId) {
-    throw new AirtableError('Airtable API credentials not configured in environment variables');
+  if (!config.token || !config.baseId) {
+    throw new AirtableError('Airtable API credentials not configured');
   }
 
   try {
     // Clean up the tableName in case it contains any slashes or extra path segments
-    const cleanTableName = tableName.split('/')[0].split('?')[0].trim();
+    const cleanTableName = config.tableName.split('/')[0].split('?')[0].trim();
     
     // Clean up the name from the slug, handling special characters and extra spaces
     const nameFromSlug = slug
@@ -139,11 +153,11 @@ export async function fetchMentorBySlug(slug: string): Promise<Mentor | null> {
     const filterByFormula = encodeURIComponent(
       `AND(OR(lookbookLabel='MM', lookbookLabel='AM'), LOWER(TRIM(REGEX_REPLACE(Name, '[^a-zA-Z0-9\\s]', '')))='${nameFromSlug.toLowerCase()}')`
     );
-    const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(cleanTableName)}?filterByFormula=${filterByFormula}&_=${Date.now()}`;
+    const url = `https://api.airtable.com/v0/${config.baseId}/${encodeURIComponent(cleanTableName)}?filterByFormula=${filterByFormula}&_=${Date.now()}`;
     
     const response = await fetch(url, {
       headers: {
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${config.token}`
       },
     });
 
@@ -217,21 +231,21 @@ export async function submitMentorFeedback(
   company: string,
   feedbackType: 'thumbsUp' | 'thumbsNeutral'
 ): Promise<boolean> {
-  const { token, baseId, tableName } = getAirtableConfig();
+  const config = await getAirtableConfig();
   
-  if (!token || !baseId) {
-    throw new AirtableError('Airtable API credentials not configured in environment variables');
+  if (!config.token || !config.baseId) {
+    throw new AirtableError('Airtable API credentials not configured');
   }
 
   try {
     // Clean up the tableName in case it contains any slashes or extra path segments
-    const cleanTableName = tableName.split('/')[0].split('?')[0].trim();
-    const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(cleanTableName)}/${mentorId}`;
+    const cleanTableName = config.tableName.split('/')[0].split('?')[0].trim();
+    const url = `https://api.airtable.com/v0/${config.baseId}/${encodeURIComponent(cleanTableName)}/${mentorId}`;
     
     // Get current record data
     const getResponse = await fetch(url, {
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${config.token}`,
       },
     });
 
@@ -277,7 +291,7 @@ export async function submitMentorFeedback(
     const updateResponse = await fetch(url, {
       method: 'PATCH',
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${config.token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -312,30 +326,30 @@ export async function submitMentorFeedback(
 }
 
 export async function fetchAdditionalMentors(): Promise<Mentor[]> {
-  const { token, baseId, tableName } = getAirtableConfig();
+  const config = await getAirtableConfig();
   
-  if (!token || !baseId) {
-    throw new AirtableError('Airtable API credentials not configured in environment variables');
+  if (!config.token || !config.baseId) {
+    throw new AirtableError('Airtable API credentials not configured');
   }
 
   try {
     // Clean up the tableName in case it contains any slashes or extra path segments
-    const cleanTableName = tableName.split('/')[0].split('?')[0].trim();
+    const cleanTableName = config.tableName.split('/')[0].split('?')[0].trim();
     
     // Add filter for lookbookLabel field
     const filterByFormula = encodeURIComponent("lookbookLabel='AM'");
-    const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(cleanTableName)}?filterByFormula=${filterByFormula}&_=${Date.now()}`;
+    const url = `https://api.airtable.com/v0/${config.baseId}/${encodeURIComponent(cleanTableName)}?filterByFormula=${filterByFormula}&_=${Date.now()}`;
     
     console.log('Airtable API Request:', {
       url,
-      baseId,
+      baseId: config.baseId,
       tableName: cleanTableName,
       filterByFormula
     });
     
     const response = await fetch(url, {
       headers: {
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${config.token}`
       },
     });
 
@@ -413,24 +427,24 @@ export async function fetchAdditionalMentors(): Promise<Mentor[]> {
 }
 
 export async function listTables(): Promise<void> {
-  const { token, baseId } = getAirtableConfig();
+  const config = await getAirtableConfig();
   
-  if (!token || !baseId) {
-    console.error('Missing Airtable configuration:', { token: !!token, baseId: !!baseId });
-    throw new AirtableError('Airtable API credentials not configured in environment variables');
+  if (!config.token || !config.baseId) {
+    console.error('Missing Airtable configuration:', { token: !!config.token, baseId: !!config.baseId });
+    throw new AirtableError('Airtable API credentials not configured');
   }
 
   try {
-    const url = `https://api.airtable.com/v0/${baseId}/tables`;
+    const url = `https://api.airtable.com/v0/${config.baseId}/tables`;
     console.log('Attempting to fetch tables with:', {
       url,
-      baseId,
-      tokenPrefix: token.substring(0, 10) + '...'
+      baseId: config.baseId,
+      tokenPrefix: config.token.substring(0, 10) + '...'
     });
     
     const response = await fetch(url, {
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${config.token}`,
       },
     });
 
@@ -457,29 +471,29 @@ export async function listTables(): Promise<void> {
 }
 
 export async function testAirtableAccess(): Promise<void> {
-  const { token, baseId } = getAirtableConfig();
+  const config = await getAirtableConfig();
   
-  if (!token || !baseId) {
+  if (!config.token || !config.baseId) {
     console.error('Missing Airtable configuration:', { 
-      hasToken: !!token, 
-      hasBaseId: !!baseId,
-      tokenPrefix: token ? token.substring(0, 10) + '...' : 'none',
-      baseId: baseId || 'none'
+      hasToken: !!config.token, 
+      hasBaseId: !!config.baseId,
+      tokenPrefix: config.token ? config.token.substring(0, 10) + '...' : 'none',
+      baseId: config.baseId || 'none'
     });
-    throw new AirtableError('Airtable API credentials not configured in environment variables');
+    throw new AirtableError('Airtable API credentials not configured');
   }
 
   try {
     // First try to get base info
-    const baseUrl = `https://api.airtable.com/v0/${baseId}`;
+    const baseUrl = `https://api.airtable.com/v0/${config.baseId}`;
     console.log('Testing Airtable access with:', {
       baseUrl,
-      tokenPrefix: token.substring(0, 10) + '...'
+      tokenPrefix: config.token.substring(0, 10) + '...'
     });
     
     const response = await fetch(baseUrl, {
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${config.token}`,
       },
     });
 
