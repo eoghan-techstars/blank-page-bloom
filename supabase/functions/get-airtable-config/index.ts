@@ -33,11 +33,19 @@ serve(async (req) => {
       throw new Error("Invalid configuration type requested");
     }
 
+    // Log the config being returned (without showing full token)
+    const safeConfig = { ...config };
+    if (safeConfig.token) {
+      safeConfig.token = safeConfig.token.substring(0, 10) + '...';
+    }
+    console.log(`Returning ${type} config:`, safeConfig);
+
     return new Response(JSON.stringify(config), {
       headers: { "Content-Type": "application/json" },
       status: 200,
     });
   } catch (error) {
+    console.error("Error in get-airtable-config:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { "Content-Type": "application/json" },
       status: 500,
