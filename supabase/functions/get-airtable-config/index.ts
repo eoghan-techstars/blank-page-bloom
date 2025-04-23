@@ -1,9 +1,49 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
 serve(async (req) => {
   try {
-    const { type } = await req.json();
+    // Handle CORS preflight requests
+    if (req.method === 'OPTIONS') {
+      return new Response(null, {
+        headers: corsHeaders,
+        status: 204,
+      });
+    }
+
+    // Safely parse the request body
+    let type;
+    try {
+      if (req.body) {
+        const body = await req.text();
+        console.log("Request body:", body);
+        
+        if (body && body.trim() !== '') {
+          const data = JSON.parse(body);
+          type = data.type;
+        }
+      }
+    } catch (parseError) {
+      console.error("Error parsing request body:", parseError);
+      return new Response(JSON.stringify({ 
+        error: `Failed to parse request body: ${parseError.message}`,
+        timestamp: new Date().toISOString() 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      });
+    }
+
+    // Ensure we have a valid type
+    if (!type) {
+      console.log("No type specified, defaulting to 'mentors'");
+      type = 'mentors'; // Default to mentors if no type is specified
+    }
     
     const configs = {
       mentors: {
@@ -34,7 +74,36 @@ serve(async (req) => {
     
     const config = configs[type as keyof typeof configs];
     if (!config) {
-      throw new Error(`Invalid configuration type requested: ${type}`);
+      const errorMsg = `Invalid configuration type requested: ${type}`;
+      console.error(errorMsg);
+      return new Response(JSON.stringify({ 
+        error: errorMsg,
+        availableTypes: Object.keys(configs),
+        timestamp: new Date().toISOString() 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      });
+    }
+
+    // Check if we have all the necessary environment variables
+    if (!config.token || !config.baseId || (!config.tableName && !config.tableId)) {
+      console.error(`Missing required environment variables for ${type} configuration`);
+      
+      // Log which variables are missing to help debugging
+      const missing = [];
+      if (!config.token) missing.push(type === 'mentors' ? 'AIRTABLE_API_TOKEN' : `${type.toUpperCase()}_AIRTABLE_API_TOKEN`);
+      if (!config.baseId) missing.push(type === 'mentors' ? 'AIRTABLE_BASE_ID' : `${type.toUpperCase()}_AIRTABLE_BASE_ID`);
+      if (!config.tableName && !config.tableId) missing.push(type === 'mentors' ? 'AIRTABLE_TABLE_NAME' : `${type.toUpperCase()}_AIRTABLE_TABLE_ID`);
+      
+      return new Response(JSON.stringify({ 
+        error: 'Airtable configuration not complete',
+        missing,
+        timestamp: new Date().toISOString() 
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 500,
+      });
     }
 
     // Log the config being returned (without showing full token)
@@ -45,11 +114,7 @@ serve(async (req) => {
     console.log(`Returning ${type} config:`, safeConfig);
 
     return new Response(JSON.stringify(config), {
-      headers: { 
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
-      },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     });
   } catch (error) {
@@ -59,11 +124,7 @@ serve(async (req) => {
       type: "error",
       timestamp: new Date().toISOString()
     }), {
-      headers: { 
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
-      },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     });
   }
